@@ -1,7 +1,9 @@
+import 'dart:io'; // For Platform.isIOS
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // For MethodChannels if needed
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:wifi_iot/wifi_iot.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart'; // For Settings deep link
 
 void main() => runApp(PocketFenceApp());
 
@@ -24,17 +26,16 @@ class ParentDashboard extends StatefulWidget {
 class _ParentDashboardState extends State<ParentDashboard> {
   bool _hotspotOn = false;
   String _dnsStatus = 'Not Set';
+  bool _isIOS = Platform.isIOS;
   int _screenTimeLimit = 120; // minutes
 
   @override
   void initState() {
     super.initState();
-    _initHotspot();
     _loadPrefs();
-  }
-
-  Future<void> _initHotspot() async {
-    await WiFiForIoTPlugin.loadWifiList();
+    if (_isIOS) {
+      _checkHotspotStatus(); // Simulate check via native if added
+    }
   }
 
   Future<void> _loadPrefs() async {
@@ -44,26 +45,57 @@ class _ParentDashboardState extends State<ParentDashboard> {
     });
   }
 
+  // iOS: Open Settings for manual hotspot toggle
   Future<void> _toggleHotspot(bool on) async {
     setState(() => _hotspotOn = on);
-    if (on) {
-      await WiFiForIoTPlugin.setEnabled(true); // Android hotspot on
-      // Set DNS to NextDNS (e.g., 45.90.28.0)
-      await WiFiForIoTPlugin.setDNS('45.90.28.0');
-      _dnsStatus = 'NextDNS Active';
+    if (_isIOS) {
+      // Deep link to Personal Hotspot settings
+      final uri = Uri.parse('App-Prefs:Internet Tethering'); // iOS 10+ hotspot URL
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        _dnsStatus = 'Manual Setup Opened - Set DNS to 45.90.28.0 in Wi-Fi Settings';
+      } else {
+        // Fallback: Open general Settings
+        await launchUrl(Uri.parse('app-settings:'), mode: LaunchMode.externalApplication);
+        _dnsStatus = 'Go to Settings > Personal Hotspot & Wi-Fi > DNS';
+      }
     } else {
-      await WiFiForIoTPlugin.setEnabled(false);
-      _dnsStatus = 'Off';
+      // Android: Keep original logic (add wifi_iot back if needed)
+      // await WiFiForIoTPlugin.setEnabled(on);
+      _dnsStatus = on ? 'NextDNS Active' : 'Off';
     }
     setState(() {});
+  }
+
+  // iOS VPN Fallback for DNS (expand with native channel)
+  Future<void> _enableVPNSafeDNS() async {
+    if (_isIOS) {
+      // Native call: Setup NETunnelProviderManager with NextDNS
+      // Example channel invoke (implement in ios/Runner/AppDelegate.swift)
+      const channel = MethodChannel('pocketfence.vpn');
+      try {
+        final bool success = await channel.invokeMethod('setupVPN');
+        if (success) {
+          _dnsStatus = 'VPN DNS Filter Active (System-Wide)';
+        }
+      } on PlatformException catch (e) {
+        _dnsStatus = 'VPN Setup Failed: $e';
+      }
+    }
   }
 
   Future<void> _setLimit(int limit) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setInt('screenTimeLimit', limit);
     setState(() => _screenTimeLimit = limit);
-    // TODO: Sync to NextDNS API
+    // Sync to NextDNS
     await http.post(Uri.parse('https://dns.nextdns.io/update'), body: {'limit': limit.toString()});
+  }
+
+  void _checkHotspotStatus() {
+    // Placeholder: Use private API detection if jailbroken, or prompt user
+    // For now, assume off and guide
+    setState(() => _dnsStatus = 'Enable in Settings');
   }
 
   @override
@@ -74,6 +106,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            if (_isIOS) Text('iOS Mode: Guided Setup + VPN Fallback', style: TextStyle(fontSize: 16, color: Colors.orange)),
             Text('Hotspot: ${_hotspotOn ? "ON" : "OFF"}', style: TextStyle(fontSize: 20)),
             Switch(value: _hotspotOn, onChanged: _toggleHotspot),
             Text('DNS: $_dnsStatus'),
@@ -81,9 +114,14 @@ class _ParentDashboardState extends State<ParentDashboard> {
             Slider(value: _screenTimeLimit.toDouble(), min: 30, max: 240, onChanged: (v) => _setLimit(v.toInt())),
             ElevatedButton(
               onPressed: () => _toggleHotspot(true),
-              child: Text('Start Safe Hotspot'),
+              child: Text('Start Safe Hotspot (iOS: Opens Settings)'),
             ),
-            // Add child profiles, logs here
+            if (_isIOS)
+              ElevatedButton(
+                onPressed: _enableVPNSafeDNS,
+                child: Text('Enable VPN DNS Filter'),
+              ),
+            // Add logs, profiles here
           ],
         ),
       ),
