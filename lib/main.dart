@@ -29,6 +29,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
   bool _isIOS = Platform.isIOS;
   int _screenTimeLimit = 120; // minutes
 
+  // Your NextDNS IPs
+  final String primaryDNS = "45.90.28.116";
+  final String secondaryDNS = "45.90.30.116";
+
   @override
   void initState() {
     super.initState();
@@ -53,16 +57,18 @@ class _ParentDashboardState extends State<ParentDashboard> {
       final uri = Uri.parse('App-Prefs:Internet Tethering'); // iOS 10+ hotspot URL
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
-        _dnsStatus = 'Manual Setup Opened - Set DNS to 45.90.28.0 in Wi-Fi Settings';
+        _dnsStatus =
+            'Settings opened! Go to Wi-Fi > [Your Hotspot Name] > DNS > Manual > Enter:\nPrimary: $primaryDNS\nSecondary: $secondaryDNS';
       } else {
         // Fallback: Open general Settings
         await launchUrl(Uri.parse('app-settings:'), mode: LaunchMode.externalApplication);
-        _dnsStatus = 'Go to Settings > Personal Hotspot & Wi-Fi > DNS';
+        _dnsStatus =
+            'Open Settings > Personal Hotspot > Allow Others > Then go to Wi-Fi > [Hotspot Name] > DNS > Manual > Add:\n$primaryDNS and $secondaryDNS';
       }
     } else {
       // Android: Keep original logic (add wifi_iot back if needed)
       // await WiFiForIoTPlugin.setEnabled(on);
-      _dnsStatus = on ? 'NextDNS Active' : 'Off';
+      _dnsStatus = on ? 'NextDNS Active ($primaryDNS / $secondaryDNS)' : 'Off';
     }
     setState(() {});
   }
@@ -76,7 +82,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
       try {
         final bool success = await channel.invokeMethod('setupVPN');
         if (success) {
-          _dnsStatus = 'VPN DNS Filter Active (System-Wide)';
+          _dnsStatus = 'VPN DNS Filter Active (Using $primaryDNS / $secondaryDNS)';
         }
       } on PlatformException catch (e) {
         _dnsStatus = 'VPN Setup Failed: $e';
@@ -95,7 +101,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   void _checkHotspotStatus() {
     // Placeholder: Use private API detection if jailbroken, or prompt user
     // For now, assume off and guide
-    setState(() => _dnsStatus = 'Enable in Settings');
+    setState(() => _dnsStatus = 'Tap button to enable hotspot and set DNS');
   }
 
   @override
@@ -109,7 +115,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
             if (_isIOS) Text('iOS Mode: Guided Setup + VPN Fallback', style: TextStyle(fontSize: 16, color: Colors.orange)),
             Text('Hotspot: ${_hotspotOn ? "ON" : "OFF"}', style: TextStyle(fontSize: 20)),
             Switch(value: _hotspotOn, onChanged: _toggleHotspot),
-            Text('DNS: $_dnsStatus'),
+            Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(_dnsStatus, textAlign: TextAlign.center, style: TextStyle(fontSize: 14)),
+            ),
             Text('Screen Time: $_screenTimeLimit min'),
             Slider(value: _screenTimeLimit.toDouble(), min: 30, max: 240, onChanged: (v) => _setLimit(v.toInt())),
             ElevatedButton(
