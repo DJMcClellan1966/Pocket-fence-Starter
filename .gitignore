@@ -43,3 +43,44 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Additional Flutter / IDE / platform ignores
+build/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+.flutter-version
+
+# CocoaPods
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/engine/Flutter.framework
+
+# Xcode
+*.xcworkspace
+xcuserdata/
+*.xcuserstate
+DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+
+# Android/IntelliJ
+.gradle/
+**/local.properties
+**/*.iml
+
+# VS Code
+.vscode/
+
+# Generated files and logs
+flutter_analyze_output.txt
+hotspot_log.txt
+hotspot_filtered.txt
+
+# Ignore IDE/workspace metadata
+.idea/
+.metadata
+.vs/
