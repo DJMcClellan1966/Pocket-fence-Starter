@@ -1,0 +1,52 @@
+name: iOS Build & Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  ios-build:
+    name: iOS build & test
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+
+      - name: Install gems (xcpretty, cocoapods)
+        run: |
+          gem install xcpretty --no-document || true
+          gem install cocoapods --no-document || true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Run Dart tests
+        run: flutter test --no-pub
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --no-codesign
+
+      - name: Install CocoaPods and Pod install
+        working-directory: ios
+        run: |
+          pod repo update || true
+          pod install --silent || true
+
+      - name: Run Xcode unit tests (simulator)
+        env:
+          LC_ALL: en_US.UTF-8
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 14' test | xcpretty --no-color
