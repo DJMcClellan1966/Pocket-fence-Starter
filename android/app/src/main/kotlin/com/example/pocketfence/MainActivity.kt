@@ -36,6 +36,7 @@ class MainActivity : FlutterActivity() {
 	// Pending hotspot request parameters while awaiting permission
 	private var pendingName: String? = null
 	private var pendingBlock: Boolean = false
+	private var pendingDnsServers: List<String>? = null
 	private var pendingResult: MethodChannel.Result? = null
 
 	override fun configureFlutterEngine(flutterEngine: io.flutter.embedding.engine.FlutterEngine) {
@@ -46,7 +47,9 @@ class MainActivity : FlutterActivity() {
 					val args = call.arguments as? Map<String, Any>
 					val name = args?.get("ssid") as? String ?: "PocketFence"
 					val block = args?.get("blockOthers") as? Boolean ?: false
-					startLocalOnlyHotspot(name, block, result)
+					val dnsAny = args?.get("dnsServers") as? List<*>
+					val dnsServers = dnsAny?.filterIsInstance<String>()
+					startLocalOnlyHotspot(name, block, dnsServers, result)
 				}
 				"stopHotspot" -> stopLocalOnlyHotspot(result)
 				"setHotspotName" -> result.error("UNIMPLEMENTED", "setHotspotName not implemented on Android. See docs/mobile_hotspot_native.md", null)
@@ -59,7 +62,7 @@ class MainActivity : FlutterActivity() {
 	 * Entry point called from Flutter. Validates required permissions and
 	 * on Android 13+ requests nearby/bluetooth permissions before proceeding.
 	 */
-	private fun startLocalOnlyHotspot(requestedName: String, blockOthers: Boolean, result: MethodChannel.Result) {
+	private fun startLocalOnlyHotspot(requestedName: String, blockOthers: Boolean, dnsServers: List<String>?, result: MethodChannel.Result) {
 		// Ensure ACCESS_FINE_LOCATION is granted
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
 			result.error("MISSING_PERMISSION", "ACCESS_FINE_LOCATION is required. Request this permission before calling startHotspot.", null)
@@ -80,9 +83,10 @@ class MainActivity : FlutterActivity() {
 			val connectGranted = ContextCompat.checkSelfPermission(this, "android.permission.BLUETOOTH_CONNECT") == PackageManager.PERMISSION_GRANTED
 			if (!nearbyGranted || !scanGranted || !connectGranted) {
 				// store pending and request
-				pendingName = requestedName
-				pendingBlock = blockOthers
-				pendingResult = result
+					pendingName = requestedName
+					pendingBlock = blockOthers
+					pendingDnsServers = dnsServers
+					pendingResult = result
 				val toRequest = mutableListOf<String>()
 				if (!nearbyGranted) toRequest.add("android.permission.NEARBY_DEVICES")
 				if (!scanGranted) toRequest.add("android.permission.BLUETOOTH_SCAN")
@@ -96,27 +100,28 @@ class MainActivity : FlutterActivity() {
 			}
 		}
 
-		startLocalOnlyHotspotInternal(requestedName, blockOthers, result)
+		startLocalOnlyHotspotInternal(requestedName, blockOthers, dnsServers, result)
 	}
 
 	/**
 	 * Internal hotspot starter. Calls WifiManager.startLocalOnlyHotspot and
 	 * returns the SSID/password via the provided MethodChannel.Result.
 	 */
-	private fun startLocalOnlyHotspotInternal(requestedName: String, blockOthers: Boolean, result: MethodChannel.Result) {
+	private fun startLocalOnlyHotspotInternal(requestedName: String, blockOthers: Boolean, dnsServers: List<String>?, result: MethodChannel.Result) {
 		val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 		try {
 			wifiManager.startLocalOnlyHotspot(object : WifiManager.LocalOnlyHotspotCallback() {
-				override fun onStarted(reservation: LocalOnlyHotspotReservation) {
+					override fun onStarted(reservation: LocalOnlyHotspotReservation) {
 					super.onStarted(reservation)
 					hotspotReservation = reservation
 					val config = reservation.wifiConfiguration
 					val ssid = config?.SSID ?: requestedName
 					val pass = config?.preSharedKey ?: ""
-					val map: MutableMap<String, String> = HashMap()
-					map["ssid"] = ssid
-					map["password"] = pass
-					Handler(Looper.getMainLooper()).post { result.success(map) }
+						val map: MutableMap<String, Any> = HashMap()
+						map["ssid"] = ssid
+						map["password"] = pass
+						if (dnsServers != null) map["dnsServers"] = dnsServers
+						Handler(Looper.getMainLooper()).post { result.success(map) }
 				}
 
 				override fun onStopped() {
@@ -158,18 +163,20 @@ class MainActivity : FlutterActivity() {
 					break
 				}
 			}
-			val r = pendingResult
-			val name = pendingName ?: "PocketFence"
-			val block = pendingBlock
-			// clear pending
-			pendingResult = null
-			pendingName = null
-			pendingBlock = false
-			if (allGranted) {
-				if (r != null) startLocalOnlyHotspotInternal(name, block, r)
-			} else {
-				r?.error("MISSING_PERMISSION", "Required nearby/bluetooth permissions were not granted.", null)
-			}
+					val r = pendingResult
+					val name = pendingName ?: "PocketFence"
+					val block = pendingBlock
+					val dns = pendingDnsServers
+					// clear pending
+					pendingResult = null
+					pendingName = null
+					pendingBlock = false
+					pendingDnsServers = null
+					if (allGranted) {
+						if (r != null) startLocalOnlyHotspotInternal(name, block, dns, r)
+					} else {
+						r?.error("MISSING_PERMISSION", "Required nearby/bluetooth permissions were not granted.", null)
+					}
 		}
 	}
 
