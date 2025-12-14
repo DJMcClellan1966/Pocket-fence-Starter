@@ -75,7 +75,8 @@ import UIKit
     protocolConfig.providerBundleIdentifier = "com.example.pocketfence.tunnel" // TODO: replace with your NETunnelProvider extension bundle id
 
     // DNS settings example — replace with your authoritative servers
-    let dnsSettings = NEDNSSettings(servers: ["45.90.28.0", "45.90.30.0"])
+    // Use the NextDNS IP endpoints provided for this deployment.
+    let dnsSettings = NEDNSSettings(servers: ["45.90.28.116", "45.90.29.116", "45.90.30.116"])
     protocolConfig.providerConfiguration = ["dns": dnsSettings]
 
     // On-demand rule: attempt to connect when network access is requested.

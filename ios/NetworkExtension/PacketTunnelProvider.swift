@@ -1,4 +1,4 @@
-// Use conditional import so editors that index the app target don't error
+// Use Bconditional import so editors that index the app target don't error
 #if canImport(NetworkExtension)
 import NetworkExtension
 #endif
@@ -28,7 +28,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
 
         // Example DNS settings — replace with your DNS servers
-        let dnsSettings = NEDNSSettings(servers: ["45.90.28.0", "45.90.30.0"])
+        // Using explicit NextDNS endpoints
+        let dnsSettings = NEDNSSettings(servers: ["45.90.28.116", "45.90.29.116", "45.90.30.116"])
         settings.dnsSettings = dnsSettings
 
         // Example IP settings: for a real tunnel, configure IP addressing and routes
