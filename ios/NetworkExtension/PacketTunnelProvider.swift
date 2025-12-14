@@ -27,9 +27,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         // Create a basic tunnel network settings example (adjust as needed):
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
 
-        // Example DNS settings — replace with your DNS servers
-        // Using explicit NextDNS endpoints
-        let dnsSettings = NEDNSSettings(servers: ["45.90.28.116", "45.90.29.116", "45.90.30.116"])
+        // Determine DNS servers from providerConfiguration (set by the host app) or fall back to defaults
+        var dnsServers: [String] = ["45.90.28.116", "45.90.30.116"]
+        if let cfg = self.protocolConfiguration?.providerConfiguration as? [String: Any],
+           let provided = cfg["dnsServers"] as? [String],
+           provided.count > 0 {
+            dnsServers = provided
+        }
+        let dnsSettings = NEDNSSettings(servers: dnsServers)
         settings.dnsSettings = dnsSettings
 
         // Example IP settings: for a real tunnel, configure IP addressing and routes

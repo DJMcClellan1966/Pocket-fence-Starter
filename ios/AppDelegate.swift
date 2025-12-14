@@ -28,9 +28,12 @@ import UIKit
 
     vpnChannel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
       if call.method == "setupVPN" {
+        // Accept optional DNS servers from Dart via call.arguments
+        let args = call.arguments as? [String: Any]
+        let dnsServers = args?["dnsServers"] as? [String]
         // The DNS/VPN setup uses NETunnelProviderManager and requires a NetworkExtension target.
         // Ensure you create an extension target and set the `providerBundleIdentifier` appropriately.
-        self.setupDNSVPN { success in
+        self.setupDNSVPN(dnsServers: dnsServers) { success in
           result(success)
         }
       } else {
@@ -57,7 +60,7 @@ import UIKit
    - This requires a NETunnelProvider extension target and matching `providerBundleIdentifier`.
    - For production usage you must configure entitlements, provisioning, and ensure the extension is included.
   */
-  private func setupDNSVPN(completion: @escaping (Bool) -> Void) {
+  private func setupDNSVPN(dnsServers: [String]?, completion: @escaping (Bool) -> Void) {
     let manager = NETunnelProviderManager()
     let protocolConfig = NETunnelProviderProtocol()
     protocolConfig.serverAddress = "NextDNS VPN"
@@ -74,10 +77,10 @@ import UIKit
     // include the Network Extension capability.
     protocolConfig.providerBundleIdentifier = "com.example.pocketfence.tunnel" // TODO: replace with your NETunnelProvider extension bundle id
 
-    // DNS settings example — replace with your authoritative servers
-    // Use the NextDNS IP endpoints provided for this deployment.
-    let dnsSettings = NEDNSSettings(servers: ["45.90.28.116", "45.90.29.116", "45.90.30.116"])
-    protocolConfig.providerConfiguration = ["dns": dnsSettings]
+    // DNS settings: prefer DNS servers passed from Dart, otherwise fall back to defaults
+    let dnsList = dnsServers ?? ["45.90.28.116", "45.90.29.116", "45.90.30.116"]
+    // Store DNS servers in providerConfiguration so the extension can read and apply them at runtime.
+    protocolConfig.providerConfiguration = ["dnsServers": dnsList]
 
     // On-demand rule: attempt to connect when network access is requested.
     let evaluateRule = NEEvaluateConnectionRule(matchDomains: ["*"], andAction: .connectIfNeeded)
